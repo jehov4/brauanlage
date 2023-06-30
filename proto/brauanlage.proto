@@ -1,0 +1,58 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "io.grpc.brauanlage";
+option java_outer_classname = "BrauanlageProto";
+
+package brauanlage;
+
+service Brauanlage {
+	// Stuff for resipes
+	rpc SendRcp(Rcp) returns (Rcp) {}
+	rpc GetRcp(Empty) returns (Rcp) {}
+	rpc StartStep(Empty) returns (Empty) {}
+	rpc SkipStep(Empty) returns (Empty) {}
+
+	// Continuous Status Update Streams
+	rpc GetTempStatus(Empty) returns (TempStatus) {}
+	rpc GetRelayStatus(Empty) returns (RelayStatus) {}
+	rpc GetRcpStatus(Empty) returns (RcpStep) {}
+
+	// Stuff to manipulate stati
+	rpc SetTemp(SetTempRequest) returns (Empty) {}
+	rpc ToggleRelay(ToggleRelayRequest) returns (Empty) {}
+}
+
+
+message TempStatus {
+	repeated int32 temps = 1;
+}
+
+message RelayStatus {
+	repeated bool stati = 1;
+}
+
+message SetTempRequest {
+	int32 itemp = 1;
+	int32 new_temp = 2 ;
+}
+
+message ToggleRelayRequest {
+	int32 irelay = 1;
+}
+
+message Rcp {
+	repeated RcpStep steps = 1;
+}
+
+message RcpStep {
+	bool started = 1;
+	int32 time_started = 2;
+	repeated int32 temps = 3;
+	repeated bool relays = 4;
+	bool autostart = 5;
+}
+
+message Empty {
+
+}
