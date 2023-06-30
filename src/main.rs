@@ -1,5 +1,6 @@
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::hash::{Hasher, Hash};
 
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::Sender;
@@ -55,24 +56,24 @@ impl Brauanlage for BrauanlageService {
         unimplemented!();
     }
 
-    type GetTempStatusStream = ReceiverStream<Result<TempStatus, Status>>;
-
-    async fn get_temp_status(&self, _request: Request<Empty>) -> Result<Response<Self::GetTempStatusStream>, Status> {
-        let (tx, rx) = mpsc::channel(16);
-        self.tempsStatusBroadcast.lock().unwrap().push(tx);
-        Ok(Response::new(ReceiverStream::new(rx)))
-    }
-    
-    type GetRelayStatusStream = ReceiverStream<Result<RelayStatus, Status>>;
-
-    async fn get_relay_status(&self, _request: Request<Empty>) -> Result<Response<Self::GetRelayStatusStream>, Status> {
+    async fn get_temp_status(&self, _request: Request<TempStatus>) -> Result<Response<TempStatus>, Status> {
         unimplemented!();
     }
 
-    type GetRcpStatusStream = ReceiverStream<Result<RcpStep, Status>>;
-    
-    async fn get_rcp_status(&self, _request: Request<Empty>) -> Result<Response<Self::GetRcpStatusStream>, Status> {
+    async fn get_relay_status(&self, _request: Request<RelayStatus>) -> Result<Response<RelayStatus>, Status> {
+        unimplemented!();
+    }
+
+    async fn get_rcp_status(&self, _request: Request<RcpStep>) -> Result<Response<RcpStep>, Status> {
         unimplemented!();
     }
 }
 
+impl Hash for RcpStep { 
+    fn hash<H>(&self, state: &mut H)
+    where H: Hasher,
+    {
+       self.index.hash(state);
+       self.started.hash(state);
+    }
+}

@@ -14,9 +14,9 @@ service Brauanlage {
 	rpc SkipStep(Empty) returns (Empty) {}
 
 	// Continuous Status Update Streams
-	rpc GetTempStatus(Empty) returns (TempStatus) {}
-	rpc GetRelayStatus(Empty) returns (RelayStatus) {}
-	rpc GetRcpStatus(Empty) returns (RcpStep) {}
+	rpc GetTempStatus(TempStatus) returns (TempStatus) {}
+	rpc GetRelayStatus(RelayStatus) returns (RelayStatus) {}
+	rpc GetRcpStatus(RcpStep) returns (RcpStep) {}
 
 	// Stuff to manipulate stati
 	rpc SetTemp(SetTempRequest) returns (Empty) {}
@@ -46,11 +46,12 @@ message Rcp {
 }
 
 message RcpStep {
-	bool started = 1;
-	int32 time_started = 2;
-	repeated int32 temps = 3;
-	repeated bool relays = 4;
-	bool autostart = 5;
+	int32 index = 1;
+	bool started = 2;
+	int32 time_started = 3;
+	repeated int32 temps = 4;
+	repeated bool relays = 5;
+	bool autostart = 6;
 }
 
 message Empty {
