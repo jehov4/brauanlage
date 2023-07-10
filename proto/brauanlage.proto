@@ -14,7 +14,7 @@ service Brauanlage {
 	rpc SkipStep(Empty) returns (Empty) {}
 
 	// Continuous Status Update Streams
-	rpc GetTempStatus(TempStatus) returns ( TempStatus) {}
+	rpc GetTempStatus(TempStatus) returns (stream TempStatus) {}
 	rpc GetRelayStatus(RelayStatus) returns (RelayStatus) {}
 	rpc GetRcpStatus(RcpStep) returns (RcpStep) {}
 
