@@ -10,17 +10,17 @@ service Brauanlage {
 	// Stuff for resipes
 	rpc SendRcp(Rcp) returns (Rcp) {}
 	rpc GetRcp(Empty) returns (Rcp) {}
-	rpc StartStep(Empty) returns (Empty) {}
-	rpc SkipStep(Empty) returns (Empty) {}
+	rpc StartStep(Empty) returns (RcpStep) {}
+	rpc SkipStep(Empty) returns (RcpStep) {}
 
 	// Continuous Status Update Streams
-	rpc GetTempStatus(TempStatus) returns (stream TempStatus) {}
-	rpc GetRelayStatus(RelayStatus) returns (RelayStatus) {}
-	rpc GetRcpStatus(RcpStep) returns (RcpStep) {}
+	rpc GetTempStatus(Empty) returns (stream TempStatus) {}
+	rpc GetRelayStatus(Empty) returns (RelayStatus) {}
+	rpc GetRcpStatus(Empty) returns (RcpStep) {}
 
 	// Stuff to manipulate stati
-	rpc SetTemp(TempStatus) returns (Empty) {}
-	rpc ToggleRelay(RelayStatus) returns (Empty) {}
+	rpc SetTemp(TempStatus) returns (TempStatus) {}
+	rpc ToggleRelay(RelayStatus) returns (RelayStatus) {}
 }
 
 

@@ -1,6 +1,6 @@
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
-use std::sync::Mutex;
+use tokio::sync::Mutex;
 
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::Sender;
@@ -8,6 +8,7 @@ use tokio::sync::watch;
 use tokio::sync::watch::Receiver as WReceiver;
 use tokio_stream::wrappers::WatchStream;
 
+use tonic::codegen::http::status;
 use tonic::transport::Server;
 use tonic::{Request, Response, Result, Status};
 
@@ -96,22 +97,25 @@ impl Brauanlage for BrauanlageService {
         unimplemented!();
     }
 
-    async fn start_step(&self, _request: Request<Empty>) -> Result<Response<Empty>, Status> {
+    async fn start_step(&self, _request: Request<Empty>) -> Result<Response<RcpStep>, Status> {
         unimplemented!();
     }
 
-    async fn skip_step(&self, _request: Request<Empty>) -> Result<Response<Empty>, Status> {
+    async fn skip_step(&self, _request: Request<Empty>) -> Result<Response<RcpStep>, Status> {
         unimplemented!();
     }
 
-    async fn set_temp(&self, _request: Request<TempStatus>) -> Result<Response<Empty>, Status> {
+    async fn set_temp(
+        &self,
+        _request: Request<TempStatus>,
+    ) -> Result<Response<TempStatus>, Status> {
         unimplemented!();
     }
 
     async fn toggle_relay(
         &self,
         _request: Request<RelayStatus>,
-    ) -> Result<Response<Empty>, Status> {
+    ) -> Result<Response<RelayStatus>, Status> {
         unimplemented!();
     }
 
@@ -119,33 +123,24 @@ impl Brauanlage for BrauanlageService {
 
     async fn get_temp_status(
         &self,
-        _request: Request<TempStatus>,
+        _request: Request<Empty>,
     ) -> Result<Response<Self::GetTempStatusStream>, Status> {
-        let stream_clone = self.temps_receiver.lock().unwrap().clone();
-        return Ok(Response::new(WatchStream::new(stream_clone)));
+        let stream_clone = self.temps_receiver.lock().await.clone();
+        Ok(Response::new(WatchStream::new(stream_clone)))
     }
 
     async fn get_relay_status(
         &self,
-        _request: Request<RelayStatus>,
+        _request: Request<Empty>,
     ) -> Result<Response<RelayStatus>, Status> {
-        unimplemented!();
+        let receiver_clone = self.relay_receiver.lock().await.clone();
+        let response = receiver_clone.borrow().clone();
+        Ok(Response::new(response))
     }
 
-    async fn get_rcp_status(
-        &self,
-        _request: Request<RcpStep>,
-    ) -> Result<Response<RcpStep>, Status> {
-        unimplemented!();
-    }
-}
-
-impl Hash for RcpStep {
-    fn hash<H>(&self, state: &mut H)
-    where
-        H: Hasher,
-    {
-        self.index.hash(state);
-        self.started.hash(state);
+    async fn get_rcp_status(&self, _request: Request<Empty>) -> Result<Response<RcpStep>, Status> {
+        let receiver_clone = self.rcp_receiver.lock().await.clone();
+        let response = receiver_clone.borrow().clone();
+        Ok(Response::new(response))
     }
 }
