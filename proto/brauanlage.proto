@@ -19,7 +19,7 @@ service Brauanlage {
 	rpc GetRcpStatus(Empty) returns (RcpStep) {}
 
 	// Stuff to manipulate stati
-	rpc SetTemp(TempStatus) returns (TempStatus) {}
+	rpc SetTemp(TempStatus) returns (Empty) {}
 	rpc ToggleRelay(RelayStatus) returns (RelayStatus) {}
 }
 
