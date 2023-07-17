@@ -18,8 +18,6 @@ pub mod brauanlage {
     tonic::include_proto!("brauanlage");
 }
 
-mod brauanlage_service;
-
 #[derive(Debug)]
 struct BrauanlageService {
     temps_sender: Arc<Mutex<Sender<TempStatus>>>,
@@ -57,7 +55,7 @@ async fn main() {
         step_started_timestamp: 0,
     });
 
-    let brauanlage = new_brauanlage(
+    let brauanlage = BrauanlageService::new(
         temp_sender,
         relay_sender,
         rcp_sender,
@@ -65,24 +63,6 @@ async fn main() {
         relay_watch_receiver,
         rcp_watch_receiver,
     );
-}
-
-fn new_brauanlage(
-    temp_sender: Sender<TempStatus>,
-    relay_sender: Sender<RelayStatus>,
-    rcp_sender: Sender<RcpCommand>,
-    temp_receiver: WReceiver<Result<TempStatus, Status>>,
-    relay_receiver: WReceiver<RelayStatus>,
-    rcp_receiver: WReceiver<Rcp>,
-) -> BrauanlageService {
-    BrauanlageService {
-        temps_sender: Arc::new(Mutex::new(temp_sender)),
-        relay_sender: Arc::new(Mutex::new(relay_sender)),
-        rcp_sender: Arc::new(Mutex::new(rcp_sender)),
-        temps_receiver: Arc::new(Mutex::new(temp_receiver)),
-        relay_receiver: Arc::new(Mutex::new(relay_receiver)),
-        rcp_receiver: Arc::new(Mutex::new(rcp_receiver)),
-    }
 }
 
 impl BrauanlageService {
@@ -96,5 +76,83 @@ impl BrauanlageService {
         let receiver_clone = self.relay_receiver.lock().await.clone();
         let response = receiver_clone.borrow().clone();
         response
+    }
+    pub fn new(
+        temp_sender: Sender<TempStatus>,
+        relay_sender: Sender<RelayStatus>,
+        rcp_sender: Sender<RcpCommand>,
+        temp_receiver: WReceiver<Result<TempStatus, Status>>,
+        relay_receiver: WReceiver<RelayStatus>,
+        rcp_receiver: WReceiver<Rcp>,
+    ) -> BrauanlageService {
+        BrauanlageService {
+            temps_sender: Arc::new(Mutex::new(temp_sender)),
+            relay_sender: Arc::new(Mutex::new(relay_sender)),
+            rcp_sender: Arc::new(Mutex::new(rcp_sender)),
+            temps_receiver: Arc::new(Mutex::new(temp_receiver)),
+            relay_receiver: Arc::new(Mutex::new(relay_receiver)),
+            rcp_receiver: Arc::new(Mutex::new(rcp_receiver)),
+        }
+    }
+}
+
+#[tonic::async_trait]
+impl Brauanlage for BrauanlageService {
+    async fn send_rcp(&self, _request: Request<Rcp>) -> Result<Response<Rcp>, Status> {
+        self.rcp_sender
+            .lock()
+            .await
+            .send(RcpCommand::TakeRcp(_request.into_inner()));
+        Ok(Response::new(self.get_rcp_status_inner().await))
+    }
+
+    async fn get_rcp(&self, _request: Request<Empty>) -> Result<Response<Rcp>, Status> {
+        unimplemented!();
+    }
+
+    async fn start_rcp(&self, _request: Request<Empty>) -> Result<Response<Rcp>, Status> {
+        self.rcp_sender.lock().await.send(RcpCommand::Start);
+        Ok(Response::new(self.get_rcp_status_inner().await))
+    }
+
+    async fn skip_step(&self, _request: Request<Empty>) -> Result<Response<Rcp>, Status> {
+        self.rcp_sender.lock().await.send(RcpCommand::Next);
+        Ok(Response::new(self.get_rcp_status_inner().await))
+    }
+
+    async fn set_temp(&self, _request: Request<TempStatus>) -> Result<Response<Empty>, Status> {
+        self.temps_sender.lock().await.send(_request.into_inner());
+        Ok(Response::new(Empty {}))
+    }
+
+    async fn toggle_relay(
+        &self,
+        _request: Request<RelayStatus>,
+    ) -> Result<Response<RelayStatus>, Status> {
+        self.relay_sender.lock().await.send(_request.into_inner());
+        let response = self.get_relay_status_inner().await;
+        Ok(Response::new(response))
+    }
+
+    type GetTempStatusStream = WatchStream<Result<TempStatus, Status>>;
+
+    async fn get_temp_status(
+        &self,
+        _request: Request<Empty>,
+    ) -> Result<Response<Self::GetTempStatusStream>, Status> {
+        let stream_clone = self.temps_receiver.lock().await.clone();
+        Ok(Response::new(WatchStream::new(stream_clone)))
+    }
+
+    async fn get_relay_status(
+        &self,
+        _request: Request<Empty>,
+    ) -> Result<Response<RelayStatus>, Status> {
+        let response = self.get_relay_status_inner().await;
+        Ok(Response::new(response))
+    }
+
+    async fn get_rcp_status(&self, _request: Request<Empty>) -> Result<Response<Rcp>, Status> {
+        Ok(Response::new(self.get_rcp_status_inner().await))
     }
 }
