@@ -13,7 +13,6 @@ use tonic::{Request, Response, Result, Status};
 use super::brauanlage::brauanlage_server::{Brauanlage, BrauanlageServer};
 use super::brauanlage::{Empty, Rcp, RcpStatus, RcpStep, RelayStatus, TempStatus};
 
-
 #[derive(Debug)]
 pub struct BrauanlageService {
     command_sender: Arc<Mutex<Sender<BrauCommand>>>,
