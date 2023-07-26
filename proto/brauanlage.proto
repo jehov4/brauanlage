@@ -40,7 +40,7 @@ message Rcp {
 
 enum RcpStatus {
 	Uninitialized = 0;
-  Initial = 1;
+	Initial = 1;
 	Started = 2;
 	Paused = 3;
 	Finished = 4;
