@@ -60,6 +60,7 @@ impl BrauanlageService {
             steps: Vec::new(),
             status: RcpStatus::Initial.into(),
             step_started_timestamp: 0,
+            step_index: 0,
         });
 
         BrauanlageService {

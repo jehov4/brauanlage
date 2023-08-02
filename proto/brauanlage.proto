@@ -36,6 +36,7 @@ message Rcp {
 	repeated RcpStep steps = 1;
 	RcpStatus status = 2;
 	int32 step_started_timestamp = 3;
+	int32 step_index = 4;
 }
 
 enum RcpStatus {

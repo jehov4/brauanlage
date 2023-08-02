@@ -19,6 +19,8 @@ pub struct Rcp {
     pub status: i32,
     #[prost(int32, tag = "3")]
     pub step_started_timestamp: i32,
+    #[prost(int32, tag = "4")]
+    pub step_index: i32,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]

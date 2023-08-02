@@ -1,6 +1,8 @@
 use tokio::sync::{mpsc::Receiver, Mutex};
 
+use std::ops::Deref;
 use std::sync::Arc;
+use std::time::SystemTime;
 
 use tokio::sync::watch::{Sender, self};
 use tokio::sync::watch::Receiver as WReceiver;
@@ -8,6 +10,7 @@ use tonic::Status;
 
 use itertools::izip;
 
+use super::brauanlage::RcpStep;
 use super::{brauanlage::{TempStatus, RelayStatus, Rcp, RcpStatus}, service::BrauCommand};
 use super::peripheral::Peripheral;
 
@@ -37,15 +40,16 @@ impl ServiceLoop {
             steps: Vec::new(),
             status: RcpStatus::Uninitialized.into(),
             step_started_timestamp: 0,
+            step_index: 0,
         };
 
         // channel for control commands from frontend
         let mut command_receiver = self.command_receiver.lock().await;
 
         // internal channel for relay control state irc
-        let (irc_sender, irc_receiver) = watch::channel(RelayStatus {stati: vec!(false,false)});
+        let (mut irc_sender, irc_receiver) = watch::channel(RelayStatus {stati: vec!(false,false)});
         // internal channel for temperature control state itc
-        let (itc_sender, itc_receiver) = watch::channel(TempStatus {temps: vec!(0,0,0)});
+        let (mut itc_sender, itc_receiver) = watch::channel(TempStatus {temps: vec!(0,0,0)});
 
         let temps_sender = self.temps_sender.clone();
 
@@ -67,10 +71,12 @@ impl ServiceLoop {
                         true
                     }
                 };
-
+                Self::check_rcp_status(&mut rcp_status, &mut itc_sender, &mut irc_sender );
+                
             }
         }
     }
+
     fn get_temps() -> TempStatus {
         unimplemented!()
     }
@@ -111,6 +117,43 @@ impl ServiceLoop {
             if fut.is_err()  {
                 println!("Something went wrong waiting for relay Updates")
             };
+        }
+    }
+
+    fn check_rcp_status(rcp: &mut Rcp, temps_channel: &Sender<TempStatus>, relay_channel: &mut Sender<RelayStatus>) {
+        if rcp.status == RcpStatus::Started.into() {
+            // Get a reference to the currently active step
+            let mut active_step = rcp.steps.get(usize::try_from(rcp.step_index).unwrap()).unwrap();
+            // Check whether the duration of the current step is due
+            if rcp.step_started_timestamp + active_step.duration > i32::try_from(Self::get_secs()).unwrap()  {
+                // check whether its the last step
+                if i32::try_from(rcp.steps.len()).unwrap() <= rcp.step_index {
+                    rcp.status = RcpStatus::Finished.into();
+                } else {
+                    rcp.step_index = rcp.step_index + 1;
+                    active_step = rcp.steps.get(usize::try_from(rcp.step_index).unwrap()).unwrap();
+                    // Send out updates in case the current step is autostart
+                    if active_step.autostart {
+                        Self::send_updates(active_step, temps_channel, relay_channel);
+                        rcp.step_started_timestamp = i32::try_from(Self::get_secs()).unwrap();
+                    } else {
+                        rcp.status = RcpStatus::Paused.into();
+                    }
+                }
+            } 
+        }
+    }
+
+    // Send out the internal updates to perform peripheral actions
+    fn send_updates(active_step: &RcpStep, temps_channel: &Sender<TempStatus>, relay_channel: &mut Sender<RelayStatus>) {
+        temps_channel.send(TempStatus { temps: active_step.temps.clone()});
+        relay_channel.send(RelayStatus { stati: active_step.relays.clone()});
+    }
+
+    fn get_secs() -> u64 {
+        match SystemTime::now().duration_since(SystemTime::UNIX_EPOCH) {
+            Ok(n) => n.as_secs(),
+            Err(_) => panic!("SystemTime before UNIX EPOCH!"),
         }
     }
 
