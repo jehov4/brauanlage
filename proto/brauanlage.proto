@@ -9,7 +9,6 @@ package brauanlage;
 service Brauanlage {
 	// Stuff for resipes
 	rpc SendRcp(Rcp) returns (Rcp) {}
-	rpc GetRcp(Empty) returns (Rcp) {}
 	rpc StartRcp(Empty) returns (Rcp) {}
 	rpc SkipStep(Empty) returns (Rcp) {}
 

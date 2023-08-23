@@ -11,27 +11,25 @@ use tonic::Status;
 use itertools::izip;
 
 use super::brauanlage::RcpStep;
+use super::service::AnlagenStatus;
 use super::{brauanlage::{TempStatus, RelayStatus, Rcp, RcpStatus}, service::BrauCommand};
 use super::peripheral::Peripheral;
 
 struct ServiceLoop {
     temps_sender: Arc<Mutex<Sender<Result<TempStatus, Status>>>>,
-    relay_sender: Mutex<Sender<RelayStatus>>,
-    rcp_sender: Mutex<Sender<Rcp>>,
+    anlagen_sender: Mutex<Sender<AnlagenStatus>>,
     command_receiver: Mutex<Receiver<BrauCommand>>,
 }
 
 impl ServiceLoop {
     pub async fn new(
             temps_sender: Arc<Mutex<Sender<Result<TempStatus, Status>>>>,
-            relay_sender: Mutex<Sender<RelayStatus>>,
-            rcp_sender: Mutex<Sender<Rcp>>,
+            anlagen_sender: Mutex<Sender<AnlagenStatus>>,
             command_receiver: Mutex<Receiver<BrauCommand>>,
         ) -> ServiceLoop {
         ServiceLoop {
             temps_sender: temps_sender,
-            relay_sender: relay_sender,
-            rcp_sender: rcp_sender,
+            anlagen_sender: anlagen_sender,
             command_receiver: command_receiver,
         }
     }
@@ -54,8 +52,8 @@ impl ServiceLoop {
         let temps_sender = self.temps_sender.clone();
 
         // start control loops
-        tokio::task::spawn(Self::temp_loop(itc_receiver, temps_sender));
-        tokio::task::spawn(Self::relay_loop(irc_receiver));
+        tokio::task::spawn(Self::temp_loop(itc_receiver.clone(), temps_sender));
+        tokio::task::spawn(Self::relay_loop(irc_receiver.clone()));
 
         loop {
             let command = command_receiver.try_recv();
@@ -72,9 +70,18 @@ impl ServiceLoop {
                     }
                 };
                 Self::check_rcp_status(&mut rcp_status, &mut itc_sender, &mut irc_sender );
-                
+                Self::send_status(&self.anlagen_sender, &irc_receiver, &itc_receiver, &rcp_status); 
             }
         }
+    }
+
+    async fn send_status(sender: &Mutex<Sender<AnlagenStatus>>, relays: &WReceiver<RelayStatus>, temps_set: &WReceiver<TempStatus>, rcp: &Rcp) {
+        let status = AnlagenStatus {
+           relays: relays.borrow().clone(),
+           rcp: rcp.clone(),
+           temps_set: temps_set.borrow().clone(),
+        };
+        sender.lock().await.send(status);
     }
 
     fn get_temps() -> TempStatus {
@@ -102,6 +109,7 @@ impl ServiceLoop {
         loop {
            let current = Self::get_temps();
            Peripheral::set_relays(vec!(1,2,3), Self::calc_switch_operations(&goal, &current));
+           // Send update into Stream
            inner_sender.send(Ok(current));
            if control.has_changed().unwrap() {
               goal = control.borrow_and_update().clone(); 

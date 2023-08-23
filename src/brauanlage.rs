@@ -182,28 +182,6 @@ pub mod brauanlage_client {
                 .insert(GrpcMethod::new("brauanlage.Brauanlage", "SendRcp"));
             self.inner.unary(req, path, codec).await
         }
-        pub async fn get_rcp(
-            &mut self,
-            request: impl tonic::IntoRequest<super::Empty>,
-        ) -> std::result::Result<tonic::Response<super::Rcp>, tonic::Status> {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
-            let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/brauanlage.Brauanlage/GetRcp",
-            );
-            let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(GrpcMethod::new("brauanlage.Brauanlage", "GetRcp"));
-            self.inner.unary(req, path, codec).await
-        }
         pub async fn start_rcp(
             &mut self,
             request: impl tonic::IntoRequest<super::Empty>,
@@ -377,10 +355,6 @@ pub mod brauanlage_server {
             &self,
             request: tonic::Request<super::Rcp>,
         ) -> std::result::Result<tonic::Response<super::Rcp>, tonic::Status>;
-        async fn get_rcp(
-            &self,
-            request: tonic::Request<super::Empty>,
-        ) -> std::result::Result<tonic::Response<super::Rcp>, tonic::Status>;
         async fn start_rcp(
             &self,
             request: tonic::Request<super::Empty>,
@@ -527,48 +501,6 @@ pub mod brauanlage_server {
                     let fut = async move {
                         let inner = inner.0;
                         let method = SendRcpSvc(inner);
-                        let codec = tonic::codec::ProstCodec::default();
-                        let mut grpc = tonic::server::Grpc::new(codec)
-                            .apply_compression_config(
-                                accept_compression_encodings,
-                                send_compression_encodings,
-                            )
-                            .apply_max_message_size_config(
-                                max_decoding_message_size,
-                                max_encoding_message_size,
-                            );
-                        let res = grpc.unary(method, req).await;
-                        Ok(res)
-                    };
-                    Box::pin(fut)
-                }
-                "/brauanlage.Brauanlage/GetRcp" => {
-                    #[allow(non_camel_case_types)]
-                    struct GetRcpSvc<T: Brauanlage>(pub Arc<T>);
-                    impl<T: Brauanlage> tonic::server::UnaryService<super::Empty>
-                    for GetRcpSvc<T> {
-                        type Response = super::Rcp;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
-                        fn call(
-                            &mut self,
-                            request: tonic::Request<super::Empty>,
-                        ) -> Self::Future {
-                            let inner = Arc::clone(&self.0);
-                            let fut = async move { (*inner).get_rcp(request).await };
-                            Box::pin(fut)
-                        }
-                    }
-                    let accept_compression_encodings = self.accept_compression_encodings;
-                    let send_compression_encodings = self.send_compression_encodings;
-                    let max_decoding_message_size = self.max_decoding_message_size;
-                    let max_encoding_message_size = self.max_encoding_message_size;
-                    let inner = self.inner.clone();
-                    let fut = async move {
-                        let inner = inner.0;
-                        let method = GetRcpSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(
