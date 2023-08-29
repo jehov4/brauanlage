@@ -1,6 +1,5 @@
 use tokio::sync::{mpsc::Receiver, Mutex};
 
-use std::ops::Deref;
 use std::sync::Arc;
 use std::time::SystemTime;
 
@@ -13,7 +12,7 @@ use itertools::izip;
 use super::brauanlage::RcpStep;
 use super::service::AnlagenStatus;
 use super::{brauanlage::{TempStatus, RelayStatus, Rcp, RcpStatus}, service::BrauCommand};
-use super::peripheral::Peripheral;
+use super::peripheral::{Peripheral, self};
 
 struct ServiceLoop {
     temps_sender: Arc<Mutex<Sender<Result<TempStatus, Status>>>>,
@@ -41,6 +40,9 @@ impl ServiceLoop {
             step_index: 0,
         };
 
+        // TODO: Pins Hardcoded
+        let peripheral_controller = Peripheral::new(vec![1,2,3], vec![4,5]);
+
         // channel for control commands from frontend
         let mut command_receiver = self.command_receiver.lock().await;
 
@@ -48,12 +50,15 @@ impl ServiceLoop {
         let (mut irc_sender, irc_receiver) = watch::channel(RelayStatus {stati: vec!(false,false)});
         // internal channel for temperature control state itc
         let (mut itc_sender, itc_receiver) = watch::channel(TempStatus {temps: vec!(0,0,0)});
+        // internal channel for communication from temperature task to relay task
+        // TODO: Potential Command Loss if delay in relay swiching operations!!
+        let (mut trc_sender, trc_receiver) = watch::channel(RelayStatus {stati: vec!(false,false)});
 
         let temps_sender = self.temps_sender.clone();
 
         // start control loops
-        tokio::task::spawn(Self::temp_loop(itc_receiver.clone(), temps_sender));
-        tokio::task::spawn(Self::relay_loop(irc_receiver.clone()));
+        tokio::task::spawn(Self::temp_loop(itc_receiver.clone(), trc_sender, temps_sender));
+        tokio::task::spawn(Self::relay_loop(irc_receiver.clone(),trc_receiver, peripheral_controller));
 
         loop {
             let command = command_receiver.try_recv();
@@ -88,27 +93,30 @@ impl ServiceLoop {
         unimplemented!()
     }
 
-    fn calc_switch_operations (goal: &TempStatus, current: &TempStatus) -> Vec<bool> {
+    fn calc_switch_operations (goal: &TempStatus, current: &TempStatus) -> RelayStatus {
         let heating_buffer = 1;
         let cooling_buffer = 1;
-        let mut operations = Vec::new();
+        let mut operations = RelayStatus { stati: vec![] };
+        // calculate whether a relay has to be switched for each temperature, the first 2 relays
+        // control the temerature sensitive heaters, the rest (3) are either full or none
+        // (boiling/pumps)
         for (goalv, currentv) in izip!(&goal.temps, &current.temps) {
             if *currentv > *goalv + heating_buffer {
-                operations.push(false)
+                operations.stati.push(false)
             }
             if *currentv < *goalv - cooling_buffer {
-                operations.push(true)
+                operations.stati.push(true)
             }
         }
         operations
     }
 
-    async fn temp_loop(mut control: WReceiver<TempStatus>, sender: Arc<Mutex<Sender<Result<TempStatus, Status>>>>){
+    async fn temp_loop(mut control: WReceiver<TempStatus>, relay_control: Sender<RelayStatus>, sender: Arc<Mutex<Sender<Result<TempStatus, Status>>>>){
         let mut goal = control.borrow().clone();
         let inner_sender = sender.lock().await;
         loop {
            let current = Self::get_temps();
-           Peripheral::set_relays(vec!(1,2,3), Self::calc_switch_operations(&goal, &current));
+           relay_control.send(Self::calc_switch_operations(&goal, &current));
            // Send update into Stream
            inner_sender.send(Ok(current));
            if control.has_changed().unwrap() {
@@ -118,15 +126,18 @@ impl ServiceLoop {
         
     }
     
-    async fn relay_loop(mut control: WReceiver<RelayStatus>){
+    async fn relay_loop(mut control: WReceiver<RelayStatus>, mut temp_control: WReceiver<RelayStatus>, mut peripheral_controller: Peripheral){
         loop {
-            Peripheral::set_relays(vec!(1,2), control.borrow().stati.clone());
-            let fut = control.changed().await; 
-            if fut.is_err()  {
-                println!("Something went wrong waiting for relay Updates")
-            };
+            // TODO: check on unwraps
+            if control.has_changed().unwrap() {
+                peripheral_controller.set_relays(control.borrow_and_update().clone());
+            } 
+            if temp_control.has_changed().unwrap() {                
+                peripheral_controller.set_relays(temp_control.borrow_and_update().clone());
+            }
         }
     }
+
 
     fn check_rcp_status(rcp: &mut Rcp, temps_channel: &Sender<TempStatus>, relay_channel: &mut Sender<RelayStatus>) {
         if rcp.status == RcpStatus::Started.into() {
