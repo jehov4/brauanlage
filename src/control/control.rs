@@ -1,4 +1,6 @@
-use super::structs::{RecipeStatus, RecipeState}; 
+use std::time::SystemTime;
+
+use super::structs::{RecipeStatus, RecipeState, RecipeStep}; 
 use super::peripheral::{Peripheral};
 
 pub struct Control {
@@ -20,7 +22,9 @@ impl Control {
         let temp_checking_states = vec![RecipeState::RUNNING, RecipeState::PAUSED, RecipeState::WAITING];
         // only do temp and recipe checking, when recipe is running
         if temp_checking_states.contains(&self.recipe_status.state) {
-           self.check_temperatures(); 
+            self.check_temperatures(); 
+        } else if self.recipe_status.state == RecipeState::FINISHED {
+            self.peripheral.off();
         }
     }
 
@@ -58,6 +62,56 @@ impl Control {
             HeaterState::IDLE
         }
     }
+
+    fn check_recipe(&mut self) {
+        // Check whether the current step is finished
+        // In case queue the next step
+        // If it is on hold hold the current temperature
+        // If it is on autostart set the new temperature
+        let status = &self.recipe_status;
+        let current_step = status.recipe_steps.get(status.step_index).unwrap();
+        if status.state == RecipeState::RUNNING{
+            if Self::get_sys_time_in_secs() > status.step_timestamp + current_step.duration {
+                self.next_step()
+            }
+        }
+    }
+
+    fn next_step(&mut self) {
+        let status = &mut self.recipe_status;
+        let next_step_index = status.step_index + 1;
+        if status.recipe_steps.len() < next_step_index {
+            let next_step = status.recipe_steps.get(next_step_index).unwrap();
+            status.step_index = next_step_index;
+            if next_step.automatic {
+                self.start_step();
+            } else {
+                status.state = RecipeState::WAITING;
+            }
+
+        } else {
+            status.state = RecipeState::FINISHED;
+        }
+    }
+
+    fn start_step(&mut self) {
+        self.recipe_status.state = RecipeState::RUNNING;
+        self.recipe_status.step_timestamp = Self::get_sys_time_in_secs();
+    }
+
+    fn manual_goal_override(&mut self, new_goals: Vec<f32>){
+        let status = &mut self.recipe_status;
+        status.recipe_steps.get_mut(status.step_index).unwrap().temperatures.clone_from(&new_goals);
+    }
+
+    // Helper to get current system time in Seconds
+    fn get_sys_time_in_secs() -> u64 {
+    match SystemTime::now().duration_since(SystemTime::UNIX_EPOCH) {
+        Ok(n) => n.as_secs(),
+        Err(_) => panic!("SystemTime before UNIX EPOCH!"),
+    }
+
+}
 
 
 }
