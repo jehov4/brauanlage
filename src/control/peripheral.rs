@@ -43,4 +43,16 @@ impl Peripheral {
             schuetz.trigger();
         }
     }
+    pub fn off(&mut self){
+        for schuetz in &mut self.temps {
+           if schuetz.enabled {
+               schuetz.trigger()
+           }
+        }
+        for schuetz in &mut self.pumps {
+           if schuetz.enabled {
+               schuetz.trigger()
+           }
+        }
+    }
 }
