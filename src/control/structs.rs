@@ -1,3 +1,4 @@
+#[derive(Clone)]
 pub struct RecipeStep {
     // holds the temperature goals
     // TODO: mapping to relays has to be done via configuration
@@ -30,3 +31,39 @@ pub enum RecipeState {
 }
 
 
+#[derive(PartialEq)]
+pub enum HeaterState {
+    ENABLED,
+    DISABLED,
+    IDLE,
+}
+
+pub enum Command {
+    START,
+    STOP,
+    SKIP,
+    RECIPE(Vec<RecipeStep>),
+    STEP(RecipeStep),
+    OVTEMPS(Vec<f32>),
+    OVPUMPS(Vec<bool>),
+    OVTEMP(TempOverride),
+    OVPUMP(PumpOverride),
+    OVDURATION(u64),
+}
+
+
+pub struct TempOverride {
+    pub index: usize,
+    pub temp: f32,
+}
+
+pub struct PumpOverride {
+    pub index: usize,
+    pub state: bool,
+}
+
+impl RecipeStatus {
+    pub fn current_step(&mut self) -> &mut RecipeStep {
+        self.recipe_steps.get_mut(self.step_index).unwrap()
+    }
+}

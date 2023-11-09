@@ -1,20 +1,17 @@
-use std::time::SystemTime;
+use std::sync::mpsc;
 
-use super::structs::{RecipeStatus, RecipeState, RecipeStep}; 
-use super::peripheral::{Peripheral};
+use super::structs::{RecipeStatus, RecipeState, RecipeStep, Command, HeaterState, PumpOverride, TempOverride}; 
+use super::peripheral::Peripheral;
+use super::helper::Helper;
 
 pub struct Control {
     temperatures: Vec<f32>,
     recipe_status: RecipeStatus,
     peripheral: Peripheral,
+    command_channel: mpsc::Receiver<Command>,
 }
 
-#[derive(PartialEq)]
-enum HeaterState {
-    ENABLED,
-    DISABLED,
-    IDLE,
-}
+
 
 impl Control {
     pub fn control_loop (&mut self) {
@@ -26,6 +23,11 @@ impl Control {
         } else if self.recipe_status.state == RecipeState::FINISHED {
             self.peripheral.off();
         }
+        let rcv_command = self.command_channel.try_recv();
+        if rcv_command.is_ok() {
+            let command = rcv_command.ok().unwrap();
+        }
+
     }
 
     // Update the Temperture Vector to the current temperatures
@@ -37,7 +39,7 @@ impl Control {
     fn check_temperatures(&mut self){
         let index: usize = 0;
         for temperature in &self.temperatures {
-            let goal = self.recipe_status.recipe_steps.get(self.recipe_status.step_index).unwrap().temperatures.get(index).unwrap();
+            let goal = self.recipe_status.current_step().temperatures.get(index).unwrap();
             // Check what the new state will be
             // ENABLED -> Heat
             // DISABLED -> Cool
@@ -71,7 +73,7 @@ impl Control {
         let status = &self.recipe_status;
         let current_step = status.recipe_steps.get(status.step_index).unwrap();
         if status.state == RecipeState::RUNNING{
-            if Self::get_sys_time_in_secs() > status.step_timestamp + current_step.duration {
+            if Helper::get_sys_time_in_secs() > status.step_timestamp + current_step.duration {
                 self.next_step()
             }
         }
@@ -81,8 +83,8 @@ impl Control {
         let status = &mut self.recipe_status;
         let next_step_index = status.step_index + 1;
         if status.recipe_steps.len() < next_step_index {
-            let next_step = status.recipe_steps.get(next_step_index).unwrap();
             status.step_index = next_step_index;
+            let next_step = status.current_step();
             if next_step.automatic {
                 self.start_step();
             } else {
@@ -96,22 +98,57 @@ impl Control {
 
     fn start_step(&mut self) {
         self.recipe_status.state = RecipeState::RUNNING;
-        self.recipe_status.step_timestamp = Self::get_sys_time_in_secs();
+        self.recipe_status.step_timestamp = Helper::get_sys_time_in_secs();
     }
 
     fn manual_goal_override(&mut self, new_goals: Vec<f32>){
         let status = &mut self.recipe_status;
-        status.recipe_steps.get_mut(status.step_index).unwrap().temperatures.clone_from(&new_goals);
+        status.current_step().temperatures.clone_from(&new_goals);
     }
 
-    // Helper to get current system time in Seconds
-    fn get_sys_time_in_secs() -> u64 {
-    match SystemTime::now().duration_since(SystemTime::UNIX_EPOCH) {
-        Ok(n) => n.as_secs(),
-        Err(_) => panic!("SystemTime before UNIX EPOCH!"),
+    fn manual_pump_override(&mut self, new_states: Vec<bool>){
+        let status = &mut self.recipe_status;
+        status.current_step().pumps.clone_from(&new_states);
     }
 
-}
+    fn manual_goal_override_single(&mut self, oride: TempOverride) {    
+        let status = &mut self.recipe_status;
+        let temps = &status.current_step().temperatures;
+        temps.get(oride.index).unwrap().clone_from(&&oride.temp);
+    }
 
+    fn manual_pump_override_single(&mut self, oride: PumpOverride) {    
+        let status = &mut self.recipe_status;
+        let pumps = &status.current_step().pumps;
+        pumps.get(oride.index).unwrap().clone_from(&&oride.state);
+    }
 
+    fn manual_override_duration(&mut self, duration: u64) {
+        let status = &mut self.recipe_status;
+        status.current_step().duration = duration;
+    }
+
+    fn stop(&mut self) {
+        self.peripheral.off();
+    }
+
+    fn import_recipe(&mut self, steps: Vec<RecipeStep>){
+        let mut steps =  steps.clone();
+        self.recipe_status.recipe_steps.append(steps.as_mut());
+    }
+
+    fn process_command(&mut self, command: Command) {
+        match command {
+            Command::SKIP => self.next_step(),
+            Command::START => self.start_step(),
+            Command::STOP => self.stop(),
+            Command::OVTEMP(value) => self.manual_goal_override_single(value),
+            Command::OVPUMP(value) => self.manual_pump_override_single(value),
+            Command::OVTEMPS(value) => self.manual_goal_override(value),
+            Command::OVPUMPS(value) => self.manual_pump_override(value),
+            Command::OVDURATION(value) => self.manual_override_duration(value),
+            Command::RECIPE(value) => self.import_recipe(value),
+            Command::STEP(value) => self.import_recipe(vec![value]),
+        }
+    }
 }
