@@ -9,10 +9,11 @@ pub struct RecipeStep {
     // true -> on
     // false -> off
     // TODO: mapping to relays has to be done via configuration
-    pub pumps: Vec<bool>,
+    pub schuetze: Vec<bool>,
     pub automatic: bool,
 }
 
+#[derive(Clone)]
 pub struct RecipeStatus {
     pub recipe_steps: Vec<RecipeStep>,
     pub step_index: usize,
@@ -20,7 +21,13 @@ pub struct RecipeStatus {
     pub step_timestamp: u64,
 }
 
-#[derive(PartialEq, Eq)]
+pub struct FullStatus {
+    pub recipe_status: RecipeStatus,
+    pub temperatures: Vec<f32>,
+    pub schuetze: Vec<bool>,
+}
+
+#[derive(PartialEq, Eq, Clone)]
 pub enum RecipeState {
     EMPTY,
     LOADED,

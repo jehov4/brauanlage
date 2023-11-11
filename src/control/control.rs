@@ -1,6 +1,6 @@
 use std::sync::mpsc;
 
-use super::structs::{RecipeStatus, RecipeState, RecipeStep, Command, HeaterState, PumpOverride, TempOverride}; 
+use super::structs::{RecipeStatus, RecipeState, RecipeStep, Command, HeaterState, PumpOverride, TempOverride, FullStatus}; 
 use super::peripheral::Peripheral;
 use super::helper::Helper;
 
@@ -9,6 +9,7 @@ pub struct Control {
     recipe_status: RecipeStatus,
     peripheral: Peripheral,
     command_channel: mpsc::Receiver<Command>,
+    status_feedback: mpsc::Sender<FullStatus>,
 }
 
 
@@ -26,8 +27,9 @@ impl Control {
         let rcv_command = self.command_channel.try_recv();
         if rcv_command.is_ok() {
             let command = rcv_command.ok().unwrap();
+            self.process_command(command);
         }
-
+        
     }
 
     // Update the Temperture Vector to the current temperatures
@@ -108,7 +110,7 @@ impl Control {
 
     fn manual_pump_override(&mut self, new_states: Vec<bool>){
         let status = &mut self.recipe_status;
-        status.current_step().pumps.clone_from(&new_states);
+        status.current_step().schuetze.clone_from(&new_states);
     }
 
     fn manual_goal_override_single(&mut self, oride: TempOverride) {    
@@ -119,7 +121,7 @@ impl Control {
 
     fn manual_pump_override_single(&mut self, oride: PumpOverride) {    
         let status = &mut self.recipe_status;
-        let pumps = &status.current_step().pumps;
+        let pumps = &status.current_step().schuetze;
         pumps.get(oride.index).unwrap().clone_from(&&oride.state);
     }
 
@@ -150,5 +152,14 @@ impl Control {
             Command::RECIPE(value) => self.import_recipe(value),
             Command::STEP(value) => self.import_recipe(vec![value]),
         }
+    }
+
+    fn send_status (&mut self) {
+        let status = FullStatus {
+           recipe_status: self.recipe_status.clone(),
+           temperatures: self.temperatures.clone(),
+           schuetze: self.peripheral.get_pump_states(),
+        };
+        self.status_feedback.send(status);
     }
 }
