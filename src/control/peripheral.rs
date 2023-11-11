@@ -2,8 +2,9 @@ use std::borrow::BorrowMut;
 use std::{thread, time};
 use rppal::gpio::Gpio;
 
-struct Schuetz {
-    enabled: bool,
+#[derive(Clone)]
+pub struct Schuetz {
+    pub enabled: bool,
     trigger_pin: u8,
 }
 
@@ -22,8 +23,8 @@ impl Schuetz {
 }
 
 pub struct Peripheral {
-    temps: Vec<Schuetz>,
-    pumps: Vec<Schuetz>,
+    pub temps: Vec<Schuetz>,
+    pub pumps: Vec<Schuetz>,
 }
 
 impl Peripheral {
@@ -54,5 +55,13 @@ impl Peripheral {
                schuetz.trigger()
            }
         }
+    }
+
+    pub fn get_pump_states(&self) -> Vec<bool>{
+        let mut schuetze: Vec<bool> = Vec::new();
+        for schuetz in &self.pumps {
+            schuetze.push(schuetz.enabled);
+        }
+        schuetze
     }
 }
