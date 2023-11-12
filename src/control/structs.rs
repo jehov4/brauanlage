@@ -1,3 +1,5 @@
+use super::helper::Helper;
+
 #[derive(Clone)]
 pub struct RecipeStep {
     // holds the temperature goals
@@ -27,12 +29,11 @@ pub struct FullStatus {
     pub schuetze: Vec<bool>,
 }
 
-#[derive(PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub enum RecipeState {
     EMPTY,
     LOADED,
     RUNNING,
-    PAUSED,
     WAITING,
     FINISHED,
 }
@@ -72,5 +73,15 @@ pub struct PumpOverride {
 impl RecipeStatus {
     pub fn current_step(&mut self) -> &mut RecipeStep {
         self.recipe_steps.get_mut(self.step_index).unwrap()
+    }
+    pub fn new() -> Self {
+        let empty_step = RecipeStep::new_empty();        
+        RecipeStatus { recipe_steps: vec![empty_step], step_index: 0, state: RecipeState::EMPTY, step_timestamp: Helper::get_sys_time_in_secs() }
+    }
+}
+
+impl RecipeStep {
+    pub fn new_empty() -> Self {
+        RecipeStep { temperatures: vec![0.0,0.0], schuetze: vec![false, false, false], automatic: false, duration: u64::max_value() }
     }
 }
