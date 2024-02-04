@@ -8,8 +8,6 @@ fn main() {
     let mut con1 = client.get_connection().unwrap();
     pubsub.psubscribe("temp.*").expect("could not subscribe to temp.*");
 
-    let _ : () = con1.set("temp.0", 0.0).unwrap();
-    let _ : () = con1.set("temp.1", 0.0).unwrap();
 
     loop {
         let msg = pubsub.get_message().unwrap();

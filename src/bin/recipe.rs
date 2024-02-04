@@ -20,6 +20,9 @@ fn main() {
     let _ : () = con1.set("recipe.start", 0).unwrap();
     let _ : () = con1.set("recipe.step_index", 0).unwrap();    
     let _ : () = con1.set("recipe.duration", 0).unwrap();
+    
+    let _ : () = con1.set("temp.0", 0.0).unwrap();
+    let _ : () = con1.set("temp.1", 0.0).unwrap();
      
     loop {
         let msg = pubsub.get_message().unwrap();
