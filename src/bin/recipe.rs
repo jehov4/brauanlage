@@ -8,7 +8,7 @@ fn main() {
     let mut con0 = client.get_connection().unwrap();
     let mut pubsub = con0.as_pubsub();
     let mut con1 = client.get_connection().unwrap();
-    pubsub.psubscribe("recipe.*").expect("could not subscripe to recipe");
+    pubsub.psubscribe("recipe.*").expect("could not subscribe to recipe");
 
     // Set Recipe Status
     // 0 - Not Loaded
